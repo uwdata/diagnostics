@@ -1,0 +1,188 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN"
+   "http://www.w3.org/TR/html4/strict.dtd">
+
+<html lang="en">
+<head>
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+	<title>CorrespondenceChartView | Inspection</title>
+<script src="../client_src/js/jquery.js"></script>
+<script src="../client_src/js/underscore.js"></script>
+<script src="../client_src/js/backbone.js"></script>
+<script src="../client_src/js/d3.js"></script>
+<script src="../client_src/js/CorrespondenceChartObject.js"></script>
+<script src="../client_src/js/CorrespondenceChartView.js"></script>
+<script src="../client_src/js/SpectralSeriation.js"></script>
+<script src="../client_src/js/NoiseFactorComputation.js"></script>
+<script src="../client_src/js/DenoiseComputation.js"></script>
+<script src="../client_src/js/DenoiseHelper.js"></script>
+<script src="../client_src/js/ConstrainedOptimizationInitSolver.js"></script>
+<script src="../client_src/js/ConstrainedOptimizationSolver.js"></script>
+<script src="../client_src/js/ConjugateGradientSolver.js"></script>
+<script>
+var chart, view1, view2, view3;
+var initialize = function()
+{
+	var rowDims = Math.round( Math.random() * 5 + 16 );
+	var columnDims = Math.round( Math.random() * 5 + 20 );
+	var data = [];
+	for ( var i = 0; i < rowDims; i++ )
+	{
+		var row = [];
+		for ( var j = 0; j < columnDims; j++ )
+		{
+			var r = Math.pow( Math.random() + 0.05, 10 ) * 0.5  +
+					Math.pow( Math.random() + 0.02,  5 ) * 0.001 +
+					Math.pow( Math.random() + 0.01,  1 ) * 0.0001;
+			r = Math.min( 1, Math.max( 0, r ) );
+			row.push( r );
+		}
+		data.push( row );
+	}
+	chart = new CorrespondenceChartObject().importMatrix( data );
+	chart2 = new CorrespondenceChartObject();
+	chart3 = new CorrespondenceChartObject();
+	view1 = new CorrespondenceChartView( { model : chart, el : 'div.view1' } );
+	view2 = new CorrespondenceChartView( { model : chart2, el : 'div.view2' } );
+	view3 = new CorrespondenceChartView( { model : chart3, el : 'div.view3' } );
+	
+	chart.on( "all", function(e) { console.log( "[chart] " + e ) } );
+	chart2.on( "all", function(e) { console.log( "[chart2] " + e ) } );
+	chart3.on( "all", function(e) { console.log( "[chart3] " + e ) } );
+	view1.on( "all", function(e) { console.log( "[view1] " + e ) } );
+	view2.on( "all", function(e) { console.log( "[view2] " + e ) } );
+	view3.on( "all", function(e) { console.log( "[view3] " + e ) } );
+	
+	chart.once( "seriated", function() { setTimeout( function(rowDims, columnDims, chart) { computeDenoisedMatchProbs( rowDims, columnDims, chart ) }, 500, rowDims, columnDims, chart ) } );
+//	chart.once( "aligned", function() { setTimeout( chart.seriate.bind(chart), 250 ) } );
+//	setTimeout( function() { chart.align() }, 250 );
+	setTimeout( function() { chart.seriate() }, 250 );
+	
+//	plotNoiseFactorGraph( rowDims, columnDims, chart );
+}
+function computeDenoisedMatchProbs( rowDims, columnDims, chart )
+{
+	var nfc = new NoiseFactorComputation();
+	var noiseFactorResults = nfc.compute( rowDims, columnDims, chart.get( "entries" ) );
+	var dh = new DenoiseHelper();
+	var denoiseResults = dh.compute( rowDims, columnDims, chart.get( "fullMatrix" ), noiseFactorResults.noise );
+	chart.setMatchProbs( denoiseResults.rowHistograms, denoiseResults.columnHistograms );
+}
+function plotNoiseFactorGraph( rowDims, columnDims, chart )
+{
+	var nfc = new NoiseFactorComputation();
+	var nfcResults = d3.range( 0.01, 1.00, 0.01 ).map( function(factor) { return nfc.compute( rowDims, columnDims, chart.get( "entries" ), factor ) } );
+
+	var xs = d3.scale.linear().domain( [ 0, 1 ] ).range( [ 250, 480 ] );
+	var ys = d3.scale.linear().domain( [ 0, 1 ] ).range( [ 0, 1000 ] );
+
+	var nfcElements = d3.select( "div.nfc" ).append( "svg:svg" )
+		.attr( "width", "500px" )
+		.attr( "height", "1000px" )
+		.selectAll( "g" ).data( nfcResults ).enter().append( "svg:g" )
+			.attr( "transform", function(d) { return "translate(0," + ys(d.factor) + ")" } )
+	nfcElements
+		.append( "svg:text" )
+		.attr( "font-family", "Verdana" )
+		.attr( "font-size", "6pt" )
+		.attr( "x", xs(0) - 5 )
+		.attr( "y", 2 )
+		.attr( "text-anchor", "end" )
+		.text( function(d) { return Math.round(d.factor*100)/100 } );
+	nfcElements
+		.append( "svg:line" )
+		.attr( "x1", xs(0) )
+		.attr( "x2", function(d) { return xs(Math.min(1, Math.max(0, d.divergence))) } )
+		.attr( "y1", 0 )
+		.attr( "y2", 0 )
+		.attr( "stroke", "#d62728" )
+		.attr( "stroke-width", 0.5 )
+	nfcElements
+		.append( "svg:circle" )
+		.attr( "cx", function(d) { return xs(Math.min(1, Math.max(0, d.divergence))) } )
+		.attr( "cy", 0 )
+		.attr( "r", 3 )
+		.attr( "stroke", null )
+		.attr( "fill", "#d62728" );
+}
+var updateMatrixImmediately = function()
+{
+	var matrix = d3.select( "textarea.matrix" )[0][0].value.split( /[;\n\r\f]+/g )
+		.map( function(d){ return d.split( /[ ,]+/g )
+			.map( function(d) { return parseFloat(d) } ) } );
+	chart.importValues( matrix );
+};
+var updateMatrix = _.debounce( updateMatrixImmediately, 500 );
+var updateOrderingImmediately = function()
+{
+	var rowOrdering = d3.select( "textarea.rowOrdering" )[0][0].value.split( /[ ,;\n\r\f]+/g ).map( function(d) { return Math.round(d) } );
+	var columnOrdering = d3.select( "textarea.columnOrdering" )[0][0].value.split( /[ ,;\n\r\f]+/g ).map( function(d) { return Math.round(d) } );
+	chart.setOrdering( rowOrdering, columnOrdering );
+};
+var updateOrdering = _.debounce( updateOrderingImmediately, 500 );
+var updateLabelsImmediately = function()
+{
+	var rowLabels = _.filter( d3.select( "textarea.rowLabels" )[0][0].value.split( /[,;\n\r\f]+/g ), function(d) { return d.length > 0 } );
+	var columnLabels = _.filter( d3.select( "textarea.columnLabels" )[0][0].value.split( /[,;\n\r\f]+/g ), function(d) { return d.length > 0 } );
+	chart.setLabels( rowLabels, columnLabels );
+};
+var updateLabels = _.debounce( updateLabelsImmediately, 500 );
+var updateMatchProbsImmediately = function()
+{
+	var rowMatchProbs = _.filter( d3.select( "textarea.rowMatchProbs" )[0][0].value.split( /[,;\n\r\f]+/g ), function(d) { return d.length > 0 } )
+		.map( function(d) { return _.filter( d.split( /[ ]+/g ), function(d) { return d.length > 0 } ).map( function(d) { return parseFloat(d) } ) } );
+	var columnMatchProbs = _.filter( d3.select( "textarea.columnMatchProbs" )[0][0].value.split( /[,;\n\r\f]+/g ), function(d) { return d.length > 0 } )
+		.map( function(d) { return _.filter( d.split( /[ ]+/g ), function(d) { return d.length > 0 } ).map( function(d) { return parseFloat(d) } ) } );
+		console.log( rowMatchProbs, columnMatchProbs )
+	chart.setMatchProbs( rowMatchProbs, columnMatchProbs );
+};
+var updateMatchProbs = _.debounce( updateMatchProbsImmediately, 500 );
+</script>
+<style type="text/css">
+div.inputColumn {
+	display: inline-block;
+	color: #999;
+}
+textarea {
+	width: 160px;
+	height: 80px;
+}
+</style>
+</head>
+<body onload="initialize()">
+	<div class="input" style="font-family: Georgia; font-size: 8pt;">
+		<div class="inputColumn" style="display: none">
+			<div>Matching likelihoods</div>
+			<textarea class="matrix" style="width: 400px; white-space: nowrap;" onkeyup="updateMatrix()"></textarea>
+		</div>
+		<div class="inputColumn">
+			<div>Row Ordering<br/>(whitespace separated)</div>
+			<textarea class="rowOrdering" onkeyup="updateOrdering()"></textarea>
+		</div>
+		<div class="inputColumn">
+			<div>Column Ordering<br/>(whitespace separated)</div>
+			<textarea class="columnOrdering" onkeyup="updateOrdering()"></textarea>
+		</div>
+		<div class="inputColumn">
+			<div>Row Labels<br/>(semicolon separated)</div>
+			<textarea class="rowLabels" onkeyup="updateLabels()"></textarea>
+		</div>
+		<div class="inputColumn">
+			<div>Column Labels<br/>(semicolon separated)</div>
+			<textarea class="columnLabels" onkeyup="updateLabels()"></textarea>
+		</div>
+		<div class="inputColumn">
+			<div>Row Matching Probability<br/>(semicolon separated)</div>
+			<textarea class="rowMatchProbs" onkeyup="updateMatchProbs()"></textarea>
+		</div>
+		<div class="inputColumn">
+			<div>Column Matching Probability<br/>(semicolon separated)</div>
+			<textarea class="columnMatchProbs" onkeyup="updateMatchProbs()"></textarea>
+		</div>
+	</div>
+	<div style="width: 1600px">
+		<div class="view1"></div>
+		<div class="view2"></div>
+		<div class="view3"></div>
+	</div>
+	<div class="nfc"></div>
+</body>

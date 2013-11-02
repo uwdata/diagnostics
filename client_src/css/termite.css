@@ -1,0 +1,64 @@
+body {
+	background-color: #ccc;
+	cursor: default;
+}
+div, p {
+	padding: 0;
+	margin: 0;
+	border: 0;
+}
+
+#PageHeader {
+	font-family: Georgia;
+	padding: 15px 25px;
+	background: #eee;
+	border-top-right-radius: 29px;
+}
+#PageHeader .title {
+	font-weight: bold;
+	font-size: 18pt;
+}
+#PageHeader .subtitle {
+	font-size: 12pt;
+	color: #666;
+}
+#PageHeader .credits {
+	font-size: 9pt;
+	color: #999;
+}
+#PageHeader a {
+	text-decoration: none;
+	color: #999;
+}
+#PageHeader a:hover {
+	text-decoration: underline;
+	color: #666;
+}
+
+#PageControl {
+	color: #666;
+	font-family: Verdana;
+	font-size: 8pt;
+	padding: 10px 20px;
+	background: #eee;
+	border-top: 1px solid #ccc;
+	border-bottom: 1px solid #ccc;
+}
+
+#Visualization {
+	padding: 0 40px;
+}
+
+#PageFooter {
+	min-height: 60px;
+}
+
+#Content {
+	background: #fff;
+	display: inline-block;
+	margin: 20px;
+	border: 1px solid #999;
+	border-top-right-radius: 30px;
+	border-bottom-left-radius: 50px;
+	box-shadow: 2px 2px 8px #666;
+}
